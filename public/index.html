@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>To-Do Website</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1 class="header">Welcome to my Todo List</h1>
+
+    <!-- Form to Add Task -->
+    <form id="addTaskForm" class="add-form">
+      <input type="text" id="taskTitle" placeholder="Task Title" required>
+      <textarea id="taskDescription" placeholder="Task Description" required></textarea>
+
+      <!-- Date and Time Wrapper -->
+      <div class="datetime-wrapper">
+        <input type="date" id="taskDate" required>
+        <input type="time" id="taskTime" required>
+      </div>
+
+      <button type="submit" class="btn-add">Add Task</button>
+    </form>
+
+    <!-- Task List -->
+    <ul id="taskList" class="task-list"></ul>
+
+    <!-- Task Area for Task Logs -->
+    <div id="task-area" class="task-area">
+      <h2>Task Activity Log</h2>
+      <ul id="logList"></ul>
+    </div>
+  </div>
+
+  <script>
+    // Fetch tasks from the server
+    function fetchTasks() {
+      fetch('/tasks')
+        .then(response => response.json())
+        .then(tasks => {
+          renderTasks(tasks);
+        });
+    }
+
+    // Function to render tasks
+    function renderTasks(tasks) {
+      const taskList = document.getElementById('taskList');
+      taskList.innerHTML = ''; // Clear the existing list
+
+      tasks.forEach((task) => {
+        const li = document.createElement('li');
+        li.classList.add('task-item');
+
+        const taskContent = document.createElement('div');
+        taskContent.classList.add('task-content');
+        taskContent.innerHTML = `  
+          <strong>${task.task_name}</strong><br>
+          <em>${task.task_date || ''} ${task.task_time || ''}</em><br>
+          <span class="${task.status === 'completed' ? 'completed' : 'incomplete'}">
+            ${task.status === 'completed' ? 'Completed' : 'Not Completed'}
+          </span>
+        `;
+        li.appendChild(taskContent);
+
+        const taskActions = document.createElement('div');
+        taskActions.classList.add('task-actions');
+
+        // Mark Complete / Incomplete Button
+        const toggleButton = document.createElement('button');
+        toggleButton.classList.add('btn-toggle');
+        toggleButton.textContent = task.status === 'completed' ? 'Mark Incomplete' : 'Mark Complete';
+        toggleButton.onclick = () => toggleTaskCompletion(task.id, task.task_name, task.task_description);
+        taskActions.appendChild(toggleButton);
+
+        // Delete Button
+        const deleteButton = document.createElement('button');
+        deleteButton.classList.add('btn-delete');
+        deleteButton.textContent = 'Delete';
+        deleteButton.onclick = () => deleteTask(task.id);
+        taskActions.appendChild(deleteButton);
+
+        li.appendChild(taskActions);
+        taskList.appendChild(li);
+      });
+    }
+
+    // Add task
+    document.getElementById('addTaskForm').addEventListener('submit', function (event) {
+      event.preventDefault(); // Prevent page reload
+
+      const title = document.getElementById('taskTitle').value;
+      const description = document.getElementById('taskDescription').value;
+      const date = document.getElementById('taskDate').value;
+      const time = document.getElementById('taskTime').value;
+
+      // Add new task to the database via API
+      fetch('/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          task_name: title,
+          task_description: description,
+          task_date: date,
+          task_time: time
+        })
+      })
+      .then(response => response.json())
+      .then(() => {
+        fetchTasks(); // Reload the task list
+        document.getElementById('taskTitle').value = '';
+        document.getElementById('taskDescription').value = '';
+        document.getElementById('taskDate').value = '';
+        document.getElementById('taskTime').value = '';
+        addLogMessage(`Task "${title}" added for ${date} at ${time}.`, description, title);
+      });
+    });
+
+    // Toggle task completion status
+    function toggleTaskCompletion(id, taskName, taskDescription) {
+      fetch(`/tasks/${id}`, { method: 'PUT' })
+        .then(() => fetchTasks())
+        .then(() => addLogMessage(`Task "${taskName}" completion status toggled.`, taskDescription, taskName));
+    }
+
+    // Delete task
+    function deleteTask(id) {
+      fetch(`/tasks/${id}`, { method: 'DELETE' })
+        .then(() => fetchTasks())
+        .then(() => addLogMessage(`Task with ID ${id} deleted.`, '', ''));
+    }
+
+    // Function to add a log message with a clickable link to the task description
+    function addLogMessage(message, taskDescription, taskName) {
+      const logList = document.getElementById('logList');
+      const logItem = document.createElement('li');
+
+      // Create a log message element
+      const logMessage = document.createElement('span');
+      logMessage.textContent = message;
+      logItem.appendChild(logMessage);
+
+      // Create a button to view the task description
+      if (taskDescription) {
+        const viewDescriptionBtn = document.createElement('button');
+        viewDescriptionBtn.textContent = "View Description";
+        viewDescriptionBtn.classList.add('btn-view-description');
+        viewDescriptionBtn.onclick = () => alert(taskDescription);
+        logItem.appendChild(viewDescriptionBtn);
+      }
+
+      logList.appendChild(logItem);
+    }
+
+    // Initial render
+    window.onload = fetchTasks;
+  </script>
+</body>
+</html>
